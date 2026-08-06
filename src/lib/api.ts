@@ -1,8 +1,8 @@
 // src/lib/api.ts — Frontend API client connecting to Express backend
+// All requests go through the Next.js proxy at /api/backend/* (same origin, no CORS)
+// The proxy then forwards requests server-to-server to the Express backend
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://gmail-protal-server.vercel.app/api";
+const API_BASE_URL = "/api/backend";
 
 function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;

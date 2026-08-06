@@ -2,8 +2,9 @@
 
 // src/app/dashboard/page.tsx — Main OTP management dashboard
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 import { useSession, signIn } from "next-auth/react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useAccountStore } from "@/store/accountStore";
 import { AccountWithOTPs, AccountWorkflowItem } from "@/types";
 import { authApi, accountsApi } from "@/lib/api";
@@ -27,8 +28,14 @@ import {
 
 const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === "true";
 
-export default function DashboardPage() {
+// ─────────────────────────────────────────────────────────────────────────────
+// Inner component (must be inside <Suspense> because it uses useSearchParams)
+// ─────────────────────────────────────────────────────────────────────────────
+function DashboardContent() {
   const { data: session, status } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const {
     accountsWithOTPs,
     currentIndex,
@@ -44,63 +51,75 @@ export default function DashboardPage() {
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [syncingAccount, setSyncingAccount] = useState(false);
-  const syncedRef = useRef<string | null>(null);
 
-  // Sync Google session with backend API and Neon DB
+  // This ref ensures we only run the backend sync ONCE per page load.
+  // It prevents the race condition where router.replace() re-triggers the effect.
+  const syncExecuted = useRef(false);
+
   useEffect(() => {
-    const syncSessionAndLoad = async () => {
-      if (DEMO_MODE) {
-        fetchAccountsAndOtps();
-        return;
-      }
+    // ── DEMO MODE: no backend, just load demo data ──
+    if (DEMO_MODE) {
+      fetchAccountsAndOtps();
+      return;
+    }
 
-      if (status === "authenticated" && session?.accessToken) {
-        const currentAccessToken = session.accessToken as string;
+    // ── Not yet resolved ──
+    if (status === "loading") return;
 
-        // Use sessionStorage to track which accessToken we already synced to our backend
-        // This prevents duplicate API calls on remount within the same browser tab session
-        const lastSyncedToken = sessionStorage.getItem("gmail_portal_synced_token");
+    // ── Not authenticated: load whatever is in the store (empty) ──
+    if (status === "unauthenticated") {
+      fetchAccountsAndOtps();
+      return;
+    }
 
-        if (lastSyncedToken === currentAccessToken) {
-          // Already synced this session token — just load accounts from DB
-          fetchAccountsAndOtps();
-          return;
+    // ── Authenticated ──
+    if (status !== "authenticated" || !session?.accessToken) return;
+
+    // Prevent this effect from running more than once per page load.
+    // router.replace() will change searchParams (triggering a re-render) but
+    // we must NOT re-run the backend sync when that happens.
+    if (syncExecuted.current) return;
+    syncExecuted.current = true;
+
+    const googleAccessToken = session.accessToken as string;
+    const googleRefreshToken = (session.refreshToken as string) || undefined;
+
+    // Read intent from URL BEFORE touching the URL
+    const isAddingAccount = searchParams.get("addAccount") === "true";
+
+    // Immediately clean the URL so a manual refresh doesn't re-trigger the add-account path
+    if (isAddingAccount) {
+      router.replace("/dashboard");
+    }
+
+    const doSync = async () => {
+      setSyncingAccount(true);
+      try {
+        if (isAddingAccount) {
+          // ── ADD ACCOUNT FLOW ──
+          // The backend JWT (localStorage) still belongs to the primary user.
+          // We call accountsApi.add() with the SECONDARY Google token so the
+          // Express server links it as SECONDARY under the primary user's userId.
+          await accountsApi.add(googleAccessToken, googleRefreshToken);
+        } else {
+          // ── PRIMARY LOGIN FLOW ──
+          // Register/update the primary user and store their backend JWT.
+          await authApi.loginWithGoogle(googleAccessToken, googleRefreshToken);
         }
-
-        setSyncingAccount(true);
-        try {
-          const isAddingAccount =
-            typeof window !== "undefined" &&
-            sessionStorage.getItem("gmail_portal_adding_account") === "true";
-
-          if (isAddingAccount) {
-            sessionStorage.removeItem("gmail_portal_adding_account");
-            await accountsApi.add(
-              currentAccessToken,
-              session.refreshToken as string
-            );
-          } else {
-            // Primary signup/login: register user & primary Gmail account
-            await authApi.loginWithGoogle(
-              currentAccessToken,
-              session.refreshToken as string
-            );
-          }
-
-          sessionStorage.setItem("gmail_portal_synced_token", currentAccessToken);
-        } catch (err) {
-          console.error("Account sync failed:", err);
-        } finally {
-          setSyncingAccount(false);
-          fetchAccountsAndOtps();
-        }
-      } else if (status === "unauthenticated") {
+      } catch (err: any) {
+        console.error("[Dashboard] Backend sync failed:", err?.message ?? err);
+      } finally {
+        setSyncingAccount(false);
+        // Load accounts regardless of sync success/failure
         fetchAccountsAndOtps();
       }
     };
 
-    syncSessionAndLoad();
-  }, [session, status, fetchAccountsAndOtps]);
+    doSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, session]);
+  // NOTE: intentionally NOT including searchParams/router in deps.
+  // We capture them synchronously inside the effect before any state changes.
 
   const handleRefresh = useCallback(async () => {
     await refreshOtps();
@@ -264,13 +283,27 @@ export default function DashboardPage() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Exported page — wraps DashboardContent in Suspense (required by Next.js for useSearchParams)
+// ─────────────────────────────────────────────────────────────────────────────
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="h-screen bg-[#0a0d12]" />}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Empty State Component
+// ─────────────────────────────────────────────────────────────────────────────
 function EmptyState() {
   const handleAddGmail = () => {
     if (DEMO_MODE) {
       alert("In Demo Mode. Turn off DEMO_MODE in .env.local to link real accounts.");
       return;
     }
+    // Primary login from empty state — goes through the normal auth flow
     signIn("google", { callbackUrl: "/dashboard", prompt: "consent" });
   };
 
@@ -294,7 +327,9 @@ function EmptyState() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Right Stats Panel (desktop only)
+// ─────────────────────────────────────────────────────────────────────────────
 interface StatsPanelProps {
   accounts: AccountWithOTPs[];
   currentIndex: number;

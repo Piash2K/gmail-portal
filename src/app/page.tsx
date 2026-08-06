@@ -5,7 +5,6 @@
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { authApi } from "@/lib/api";
 import {
   Mail,
   Zap,
@@ -23,30 +22,11 @@ export default function LoginPage() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    const syncBackendAuth = async () => {
-      if (session && status === "authenticated") {
-        if (DEMO_MODE) {
-          router.push("/dashboard");
-          return;
-        }
-
-        try {
-          if (session.accessToken) {
-            await authApi.loginWithGoogle(
-              session.accessToken as string,
-              session.refreshToken as string
-            );
-          }
-          router.push("/dashboard");
-        } catch (err: any) {
-          console.error("Backend auth sync failed:", err);
-          setAuthError(err.message || "Failed to authenticate with backend server");
-          setIsSigningIn(false);
-        }
-      }
-    };
-
-    syncBackendAuth();
+    // If the user is already authenticated, redirect to dashboard.
+    // The dashboard page handles all backend sync (primary login + secondary accounts).
+    if (status === "authenticated") {
+      router.push("/dashboard");
+    }
   }, [session, status, router]);
 
   const handleSignIn = async () => {

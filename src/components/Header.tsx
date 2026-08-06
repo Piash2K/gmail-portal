@@ -23,12 +23,9 @@ export function Header({ onToggleMobileSidebar, mobileSidebarOpen }: HeaderProps
       alert("In Demo Mode, accounts are simulated. Disable DEMO_MODE in .env.local to link real accounts.");
       return;
     }
-    // Set explicit flag in sessionStorage indicating that this OAuth callback is for adding a secondary account
-    if (typeof window !== "undefined") {
-      sessionStorage.setItem("gmail_portal_adding_account", "true");
-    }
-    // Re-trigger Google OAuth consent flow to grant permission for another Gmail account
-    await signIn("google", { callbackUrl: "/dashboard", prompt: "consent" });
+    // Encode intent in the callbackUrl so it survives the OAuth server-side redirect
+    // ?addAccount=true tells the dashboard to call accountsApi.add() instead of authApi.loginWithGoogle()
+    await signIn("google", { callbackUrl: "/dashboard?addAccount=true", prompt: "consent" });
   };
 
   const handleSignOut = async () => {
