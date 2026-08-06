@@ -23,23 +23,31 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             "https://www.googleapis.com/auth/gmail.readonly",
           ].join(" "),
           access_type: "offline",
-          prompt: "consent",
+          // Note: prompt:"consent" is passed per-request in signIn() calls
+          // (Header.tsx "Add Account" and page.tsx handleSignIn) — not globally.
+          // Forcing it globally would prompt on EVERY page load.
         },
       },
     }),
   ],
   callbacks: {
     async jwt({ token, account }) {
+      // On FRESH sign-in: account is populated — copy new tokens in
       if (account) {
         token.accessToken = account.access_token;
+        // refresh_token is only sent by Google on first consent or when
+        // access_type=offline + prompt=consent is used — preserve old one otherwise
         if (account.refresh_token) {
           token.refreshToken = account.refresh_token;
         }
         token.expiresAt = account.expires_at;
       }
+      // On subsequent requests (page refresh, etc.) account is null —
+      // tokens are already in `token` from the encrypted cookie, so we just pass through.
       return token;
     },
     async session({ session, token }) {
+      // Expose tokens to client components via useSession()
       session.accessToken = token.accessToken as string;
       session.refreshToken = token.refreshToken as string;
       return session;

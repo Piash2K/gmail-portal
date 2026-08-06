@@ -52,9 +52,10 @@ function DashboardContent() {
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [syncingAccount, setSyncingAccount] = useState(false);
 
-  // This ref ensures we only run the backend sync ONCE per page load.
-  // It prevents the race condition where router.replace() re-triggers the effect.
-  const syncExecuted = useRef(false);
+  // Track which Google accessToken we've already synced to the backend.
+  // This prevents double-syncing on re-renders while correctly handling
+  // add-account flows where a NEW (secondary) token arrives.
+  const syncedTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
     // ── DEMO MODE: no backend, just load demo data ──
@@ -66,28 +67,31 @@ function DashboardContent() {
     // ── Not yet resolved ──
     if (status === "loading") return;
 
-    // ── Not authenticated: load whatever is in the store (empty) ──
+    // ── Not authenticated: clear and show empty state ──
     if (status === "unauthenticated") {
       fetchAccountsAndOtps();
       return;
     }
 
-    // ── Authenticated ──
+    // ── Authenticated but token not yet in session ──
     if (status !== "authenticated" || !session?.accessToken) return;
-
-    // Prevent this effect from running more than once per page load.
-    // router.replace() will change searchParams (triggering a re-render) but
-    // we must NOT re-run the backend sync when that happens.
-    if (syncExecuted.current) return;
-    syncExecuted.current = true;
 
     const googleAccessToken = session.accessToken as string;
     const googleRefreshToken = (session.refreshToken as string) || undefined;
 
-    // Read intent from URL BEFORE touching the URL
+    // ── Already synced this exact token ──
+    // This prevents re-running the backend sync when router.replace() or
+    // other state changes cause the component to re-render.
+    if (syncedTokenRef.current === googleAccessToken) return;
+
+    // Read intent from URL BEFORE changing anything
     const isAddingAccount = searchParams.get("addAccount") === "true";
 
-    // Immediately clean the URL so a manual refresh doesn't re-trigger the add-account path
+    // Mark this token as synced immediately (synchronously) so even if
+    // this effect fires again before doSync() finishes, we don't double-call
+    syncedTokenRef.current = googleAccessToken;
+
+    // Clean the URL so a manual refresh doesn't re-trigger add-account flow
     if (isAddingAccount) {
       router.replace("/dashboard");
     }
@@ -97,9 +101,9 @@ function DashboardContent() {
       try {
         if (isAddingAccount) {
           // ── ADD ACCOUNT FLOW ──
-          // The backend JWT (localStorage) still belongs to the primary user.
-          // We call accountsApi.add() with the SECONDARY Google token so the
-          // Express server links it as SECONDARY under the primary user's userId.
+          // Backend JWT in localStorage still belongs to the primary user.
+          // POST /accounts with the secondary Google token links it under
+          // the primary user's userId (no new User row created).
           await accountsApi.add(googleAccessToken, googleRefreshToken);
         } else {
           // ── PRIMARY LOGIN FLOW ──
@@ -110,16 +114,17 @@ function DashboardContent() {
         console.error("[Dashboard] Backend sync failed:", err?.message ?? err);
       } finally {
         setSyncingAccount(false);
-        // Load accounts regardless of sync success/failure
+        // Load accounts from DB regardless of sync outcome
         fetchAccountsAndOtps();
       }
     };
 
     doSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, session]);
-  // NOTE: intentionally NOT including searchParams/router in deps.
-  // We capture them synchronously inside the effect before any state changes.
+  }, [status, session?.accessToken]);
+  // Dep on session?.accessToken (not the whole session object) so we only
+  // re-run when the actual token changes — not on unrelated session field updates.
+
 
   const handleRefresh = useCallback(async () => {
     await refreshOtps();

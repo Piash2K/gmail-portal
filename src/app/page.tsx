@@ -35,7 +35,7 @@ export default function LoginPage() {
     if (DEMO_MODE) {
       router.push("/dashboard");
     } else {
-      await signIn("google", { callbackUrl: "/dashboard" });
+      await signIn("google", { callbackUrl: "/dashboard", prompt: "consent" });
     }
   };
 
