@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 const DEFAULT_BACKEND = "https://gmail-protal-server.vercel.app/api";
 
 function getBackendUrl(): string {
-  const envUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL;
+  const envUrl = process.env.BACKEND_API_URL;
   if (envUrl && envUrl.startsWith("http")) {
     return envUrl.replace(/\/$/, "");
   }
