@@ -32,6 +32,7 @@ export function Header({ onToggleMobileSidebar, mobileSidebarOpen }: HeaderProps
     if (typeof window !== "undefined") {
       sessionStorage.clear();
       localStorage.removeItem("gmail_portal_token");
+      localStorage.removeItem("gmail_portal_add_account_intent");
     }
     if (!DEMO_MODE) {
       await signOut({ callbackUrl: "/" });

@@ -101,25 +101,31 @@ function DashboardContent() {
 
     syncedTokenRef.current = googleAccessToken;
 
+    const hasBackendToken = typeof window !== "undefined" && !!localStorage.getItem("gmail_portal_token");
+
     const doSync = async () => {
       setSyncingAccount(true);
       try {
         if (isAddingAccount) {
-          // ── ADD ACCOUNT FLOW ──
-          // Backend JWT in localStorage still belongs to the primary user.
-          // POST /accounts with the secondary Google token links it under
-          // the primary user's userId (no new User row created).
+          // ── ADD SECONDARY ACCOUNT FLOW ──
+          // The backend JWT in localStorage belongs to the PRIMARY user.
+          // accountsApi.add() links it as SECONDARY under the primary user's userId.
+          // NO User row is EVER created for secondary accounts.
           await accountsApi.add(googleAccessToken, googleRefreshToken);
-        } else {
+        } else if (!hasBackendToken) {
           // ── PRIMARY LOGIN FLOW ──
-          // Register/update the primary user and store their backend JWT.
+          // ONLY run if the user does NOT have a backend JWT in localStorage yet
+          // (i.e. fresh login from the homepage).
+          // Creates/updates primary User row and stores backend JWT in localStorage.
           await authApi.loginWithGoogle(googleAccessToken, googleRefreshToken);
         }
+        // If hasBackendToken is true and isAddingAccount is false (e.g. page refresh),
+        // we do NOT call loginWithGoogle()! We keep the existing primary user's JWT.
       } catch (err: any) {
         console.error("[Dashboard] Backend sync failed:", err?.message ?? err);
       } finally {
         setSyncingAccount(false);
-        // Load accounts from DB regardless of sync outcome
+        // Load accounts from DB for the primary user
         fetchAccountsAndOtps();
       }
     };
