@@ -84,17 +84,22 @@ function DashboardContent() {
     // other state changes cause the component to re-render.
     if (syncedTokenRef.current === googleAccessToken) return;
 
-    // Read intent from URL BEFORE changing anything
-    const isAddingAccount = searchParams.get("addAccount") === "true";
+    // Read intent from localStorage or URL query param
+    const isAddingAccount =
+      (typeof window !== "undefined" && localStorage.getItem("gmail_portal_add_account_intent") === "true") ||
+      searchParams.get("addAccount") === "true";
 
-    // Mark this token as synced immediately (synchronously) so even if
-    // this effect fires again before doSync() finishes, we don't double-call
-    syncedTokenRef.current = googleAccessToken;
-
-    // Clean the URL so a manual refresh doesn't re-trigger add-account flow
+    // Clean up intent flag immediately so it never fires again
     if (isAddingAccount) {
-      router.replace("/dashboard");
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("gmail_portal_add_account_intent");
+      }
+      if (searchParams.get("addAccount") === "true") {
+        router.replace("/dashboard");
+      }
     }
+
+    syncedTokenRef.current = googleAccessToken;
 
     const doSync = async () => {
       setSyncingAccount(true);

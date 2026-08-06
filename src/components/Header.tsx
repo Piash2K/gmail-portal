@@ -23,8 +23,7 @@ export function Header({ onToggleMobileSidebar, mobileSidebarOpen }: HeaderProps
       alert("In Demo Mode, accounts are simulated. Disable DEMO_MODE in .env.local to link real accounts.");
       return;
     }
-    // Encode intent in the callbackUrl so it survives the OAuth server-side redirect
-    // ?addAccount=true tells the dashboard to call accountsApi.add() instead of authApi.loginWithGoogle()
+    localStorage.setItem("gmail_portal_add_account_intent", "true");
     await signIn("google", { callbackUrl: "/dashboard?addAccount=true", prompt: "consent" });
   };
 
