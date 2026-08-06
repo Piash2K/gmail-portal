@@ -41,7 +41,15 @@ async function request<T>(
     headers,
   });
 
-  const json = await response.json();
+  const text = await response.text();
+  let json: any = {};
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = { message: text };
+    }
+  }
 
   if (!response.ok) {
     throw new Error(json.message || `API Error (${response.status})`);
