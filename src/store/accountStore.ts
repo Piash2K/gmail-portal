@@ -66,6 +66,13 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
       return;
     }
 
+    // No JWT token means the user hasn't logged in yet — skip the API call
+    const token = typeof window !== "undefined" ? localStorage.getItem("gmail_portal_token") : null;
+    if (!token) {
+      set({ isLoading: false, accountsWithOTPs: [], error: null });
+      return;
+    }
+
     try {
       // 1. Fetch user accounts from Express API
       const accounts = await accountsApi.list();
@@ -89,6 +96,18 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
 
       // 3. Fetch cached OTPs for all accounts
       const otpsData = await otpsApi.getAll();
+
+      // If accounts exist but no OTPs have been cached yet (first login), trigger Gmail API scan in background
+      const totalOtps = (otpsData || []).reduce((acc: number, g: any) => acc + (g.otps?.length || 0), 0);
+      if (totalOtps === 0 && accounts.length > 0) {
+        otpsApi.refreshAll().then(async () => {
+          const fresh = await otpsApi.getAll();
+          const newTotal = (fresh || []).reduce((acc: number, g: any) => acc + (g.otps?.length || 0), 0);
+          if (newTotal > 0) {
+            get().fetchAccountsAndOtps();
+          }
+        }).catch((e) => console.warn("[AccountStore] Auto OTP scan warning:", e));
+      }
 
       // Transform backend response into AccountWithOTPs structure
       const transformed: AccountWithOTPs[] = accounts.map((acc: any) => {
@@ -115,6 +134,8 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
           accessToken: "",
           status: "active", // Always default to active when loaded
           note: acc.note || null,
+          isPrimary: acc.isPrimary ?? false,
+          primaryAccountId: acc.primaryAccountId || null,
           addedAt: new Date(acc.createdAt),
         };
 
@@ -152,15 +173,10 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
       });
     } catch (err: any) {
       console.error("Failed to fetch accounts from backend API:", err);
-      // Fallback to demo data if backend connection issue
-      const demoData = getDemoAccountsWithOTPs();
       set({
-        accountsWithOTPs: demoData,
-        progress: { done: 0, skipped: 0, total: demoData.length },
-        workflow: demoData.map((a) => ({
-          accountId: a.account.id,
-          action: "pending",
-        })),
+        accountsWithOTPs: [],
+        progress: { done: 0, skipped: 0, total: 0 },
+        workflow: [],
         isLoading: false,
         error: err.message,
         lastRefresh: new Date(),

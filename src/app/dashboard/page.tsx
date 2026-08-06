@@ -54,37 +54,44 @@ export default function DashboardPage() {
         return;
       }
 
-      if (
-        status === "authenticated" &&
-        session?.accessToken &&
-        syncedRef.current !== session.accessToken
-      ) {
-        syncedRef.current = session.accessToken as string;
+      if (status === "authenticated" && session?.accessToken) {
+        const currentAccessToken = session.accessToken as string;
+
+        // Use sessionStorage to track which accessToken we already synced to our backend
+        // This prevents duplicate API calls on remount within the same browser tab session
+        const lastSyncedToken = sessionStorage.getItem("gmail_portal_synced_token");
+
+        if (lastSyncedToken === currentAccessToken) {
+          // Already synced this session token — just load accounts from DB
+          fetchAccountsAndOtps();
+          return;
+        }
+
         setSyncingAccount(true);
         try {
-          const existingJwt =
-            typeof window !== "undefined"
-              ? localStorage.getItem("gmail_portal_token")
-              : null;
+          const isAddingAccount =
+            typeof window !== "undefined" &&
+            sessionStorage.getItem("gmail_portal_adding_account") === "true";
 
-          if (!existingJwt) {
-            // 1. First time login: create/authenticate primary portal user
+          if (isAddingAccount) {
+            sessionStorage.removeItem("gmail_portal_adding_account");
+            await accountsApi.add(
+              currentAccessToken,
+              session.refreshToken as string
+            );
+          } else {
+            // Primary signup/login: register user & primary Gmail account
             await authApi.loginWithGoogle(
-              session.accessToken as string,
+              currentAccessToken,
               session.refreshToken as string
             );
           }
 
-          // 2. Link/upsert this Gmail account under the primary portal user in Neon DB
-          await accountsApi.add(
-            session.accessToken as string,
-            session.refreshToken as string
-          );
+          sessionStorage.setItem("gmail_portal_synced_token", currentAccessToken);
         } catch (err) {
           console.error("Account sync failed:", err);
         } finally {
           setSyncingAccount(false);
-          // 3. Load ALL linked accounts & OTPs from DB
           fetchAccountsAndOtps();
         }
       } else if (status === "unauthenticated") {
@@ -328,47 +335,6 @@ function StatsPanel({ accounts, currentIndex, workflow }: StatsPanelProps) {
             <p className="text-[#475569] text-xs mt-0.5">{s.label}</p>
           </div>
         ))}
-      </div>
-
-      {/* Account list */}
-      <div>
-        <h3 className="text-xs font-bold text-[#475569] uppercase tracking-wider mb-3">
-          All Accounts
-        </h3>
-        <div className="space-y-2">
-          {accounts.map((item, idx) => {
-            const wf = workflow.find((w) => w.accountId === item.account.id);
-            const isCurrent = idx === currentIndex;
-            return (
-              <div
-                key={item.account.id}
-                className={cn(
-                  "flex items-center gap-2 p-2.5 rounded-xl border transition-colors",
-                  isCurrent
-                    ? "bg-green-500/10 border-green-500/30"
-                    : "bg-[#111620] border-[#1e2a3a]"
-                )}
-              >
-                <div
-                  className={cn(
-                    "w-2 h-2 rounded-full flex-shrink-0",
-                    wf?.action === "done"
-                      ? "bg-green-400"
-                      : wf?.action === "skipped"
-                      ? "bg-yellow-400"
-                      : "bg-[#2a3a50]"
-                  )}
-                />
-                <span className="text-xs text-[#94a3b8] truncate flex-1">
-                  {item.account.email}
-                </span>
-                <span className="text-[10px] text-[#475569]">
-                  {item.otps.length} OTP
-                </span>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

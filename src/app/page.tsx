@@ -32,7 +32,10 @@ export default function LoginPage() {
 
         try {
           if (session.accessToken) {
-            await authApi.loginWithGoogle(session.accessToken as string);
+            await authApi.loginWithGoogle(
+              session.accessToken as string,
+              session.refreshToken as string
+            );
           }
           router.push("/dashboard");
         } catch (err: any) {

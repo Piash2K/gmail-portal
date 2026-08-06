@@ -8,6 +8,8 @@ export interface GmailAccount {
   accessToken: string;
   status: "active" | "idle" | "error";
   note?: string | null;
+  isPrimary?: boolean;
+  primaryAccountId?: string | null;
   addedAt: Date;
 }
 

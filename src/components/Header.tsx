@@ -23,12 +23,20 @@ export function Header({ onToggleMobileSidebar, mobileSidebarOpen }: HeaderProps
       alert("In Demo Mode, accounts are simulated. Disable DEMO_MODE in .env.local to link real accounts.");
       return;
     }
+    // Set explicit flag in sessionStorage indicating that this OAuth callback is for adding a secondary account
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("gmail_portal_adding_account", "true");
+    }
     // Re-trigger Google OAuth consent flow to grant permission for another Gmail account
     await signIn("google", { callbackUrl: "/dashboard", prompt: "consent" });
   };
 
   const handleSignOut = async () => {
     authApi.logout();
+    if (typeof window !== "undefined") {
+      sessionStorage.clear();
+      localStorage.removeItem("gmail_portal_token");
+    }
     if (!DEMO_MODE) {
       await signOut({ callbackUrl: "/" });
     } else {
