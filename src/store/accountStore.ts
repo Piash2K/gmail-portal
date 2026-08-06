@@ -88,14 +88,24 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
         return;
       }
 
-      // 2. Fetch or create workflow session
-      let sessionData = await workflowApi.getSession();
-      if (!sessionData) {
-        sessionData = await workflowApi.createSession();
+      // 2. Fetch or create workflow session safely
+      let sessionData = null;
+      try {
+        sessionData = await workflowApi.getSession();
+        if (!sessionData) {
+          sessionData = await workflowApi.createSession();
+        }
+      } catch (wfErr) {
+        console.warn("[AccountStore] Workflow session warning:", wfErr);
       }
 
-      // 3. Fetch cached OTPs for all accounts
-      const otpsData = await otpsApi.getAll();
+      // 3. Fetch cached OTPs for all accounts safely
+      let otpsData: any[] = [];
+      try {
+        otpsData = await otpsApi.getAll();
+      } catch (otpErr) {
+        console.warn("[AccountStore] OTPs fetch warning:", otpErr);
+      }
 
       // If accounts exist but no OTPs have been cached yet (first login), trigger Gmail API scan in background
       const totalOtps = (otpsData || []).reduce((acc: number, g: any) => acc + (g.otps?.length || 0), 0);
