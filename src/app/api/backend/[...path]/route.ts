@@ -1,10 +1,18 @@
 // src/app/api/backend/[...path]/route.ts — Next.js API proxy to Express backend
 import { NextRequest, NextResponse } from "next/server";
 
-const BACKEND_URL =
-  process.env.BACKEND_API_URL ||
-  process.env.NEXT_PUBLIC_API_URL ||
-  "https://gmail-protal-server.vercel.app/api";
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+const DEFAULT_BACKEND = "https://gmail-protal-server.vercel.app/api";
+
+function getBackendUrl(): string {
+  const envUrl = process.env.BACKEND_API_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && envUrl.startsWith("http")) {
+    return envUrl.replace(/\/$/, "");
+  }
+  return DEFAULT_BACKEND;
+}
 
 const FORBIDDEN_HEADERS = new Set([
   "host",
@@ -22,7 +30,7 @@ async function proxy(req: NextRequest, rawParams: any) {
     const resolvedParams = await Promise.resolve(rawParams);
     const pathArray = Array.isArray(resolvedParams?.path) ? resolvedParams.path : [];
     const path = pathArray.join("/");
-    const targetUrl = `${BACKEND_URL}/${path}${req.nextUrl.search}`;
+    const targetUrl = `${getBackendUrl()}/${path}${req.nextUrl.search}`;
 
     const forwardHeaders = new Headers();
     req.headers.forEach((value, key) => {
