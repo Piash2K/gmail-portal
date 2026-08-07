@@ -58,5 +58,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: "jwt",
+    // Keep the user logged in for 1 year (365 days).
+    // The cookie and JWT are both renewed on every active visit.
+    maxAge: 365 * 24 * 60 * 60, // 31,536,000 seconds
+    updateAge: 24 * 60 * 60,    // Refresh the token at most once per day
+  },
+  jwt: {
+    // JWT inside the cookie also lives for 1 year
+    maxAge: 365 * 24 * 60 * 60,
   },
 });
