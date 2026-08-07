@@ -23,6 +23,8 @@ const FORBIDDEN_HEADERS = new Set([
   "content-length",
   "x-vercel-id",
   "x-vercel-deployment-url",
+  "if-none-match",
+  "if-modified-since",
 ]);
 
 async function proxy(req: NextRequest, rawParams: any) {
@@ -55,16 +57,19 @@ async function proxy(req: NextRequest, rawParams: any) {
     const responseHeaders = new Headers();
     upstream.headers.forEach((value, key) => {
       const lower = key.toLowerCase();
-      if (!["content-encoding", "transfer-encoding", "connection"].includes(lower)) {
-        responseHeaders.set(key, value);
-      }
+      // Strip headers that could cause browser to send conditional requests later
+      if (["content-encoding", "transfer-encoding", "connection", "etag", "last-modified"].includes(lower)) return;
+      responseHeaders.set(key, value);
     });
 
-    const responseBody = await upstream.text();
+    // HTTP 304 must not have a body — normalize it to 200 so the client gets valid JSON.
+    // HTTP 204/205 also must not have a body.
+    const status = upstream.status === 304 ? 200 : upstream.status;
+    const hasBody = ![204, 205].includes(status);
+    const responseBody = hasBody ? await upstream.text() : null;
 
     return new NextResponse(responseBody, {
-      status: upstream.status,
-      statusText: upstream.statusText,
+      status,
       headers: responseHeaders,
     });
   } catch (err: any) {

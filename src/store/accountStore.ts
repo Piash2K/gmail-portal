@@ -158,11 +158,23 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
         };
       });
 
-      // Transform workflow items
-      const workflowItems: AccountWorkflowItem[] = (sessionData?.session?.items || []).map((i: any) => ({
-        accountId: i.accountId,
-        action: i.action?.toLowerCase() === "done" ? "done" : i.action?.toLowerCase() === "skipped" ? "skipped" : "pending",
-      }));
+      // Transform workflow items — map ALL accounts so no entry is missing.
+      // Prefer backend session status; fall back to existing local state; default to "pending".
+      const existingWorkflow = get().workflow;
+      const sessionItems = sessionData?.session?.items || [];
+      const workflowItems: AccountWorkflowItem[] = accounts.map((acc: any) => {
+        const sessionItem = sessionItems.find((i: any) => i.accountId === acc.id);
+        const localItem = existingWorkflow.find((w) => w.accountId === acc.id);
+
+        const sessionAction =
+          sessionItem?.action?.toLowerCase() === "done" ? "done" as const
+          : sessionItem?.action?.toLowerCase() === "skipped" ? "skipped" as const
+          : null;
+
+        // If backend has an explicit status, use it. Otherwise keep local state.
+        const finalAction = sessionAction ?? localItem?.action ?? "pending" as const;
+        return { accountId: acc.id, action: finalAction };
+      });
 
       const progressData = sessionData?.progress || {
         done: workflowItems.filter((w) => w.action === "done").length,

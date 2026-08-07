@@ -4,7 +4,7 @@
 
 import { useAccountStore } from "@/store/accountStore";
 import { cn } from "@/lib/utils";
-import { CheckCheck, FastForward, RefreshCw } from "lucide-react";
+import { CheckCheck, FastForward, RefreshCw, RotateCcw } from "lucide-react";
 import { useState, useEffect } from "react";
 
 interface ActionBarProps {
@@ -13,9 +13,10 @@ interface ActionBarProps {
 }
 
 export function ActionBar({ onRefresh, isRefreshing }: ActionBarProps) {
-  const { markDone, skip, currentIndex, accountsWithOTPs, workflow } =
+  const { markDone, skip, resetAll, currentIndex, accountsWithOTPs, workflow } =
     useAccountStore();
   const [countdown, setCountdown] = useState(5);
+  const [isResetting, setIsResetting] = useState(false);
 
   const currentAccount = accountsWithOTPs[currentIndex];
   const currentWorkflow = workflow.find(
@@ -23,6 +24,11 @@ export function ActionBar({ onRefresh, isRefreshing }: ActionBarProps) {
   );
   const isDone = currentWorkflow?.action === "done";
   const isSkipped = currentWorkflow?.action === "skipped";
+
+  // Check if any account is done or skipped (to show Undone All)
+  const hasAnyAction = workflow.some(
+    (w) => w.action === "done" || w.action === "skipped"
+  );
 
   // Auto-refresh countdown
   useEffect(() => {
@@ -38,6 +44,12 @@ export function ActionBar({ onRefresh, isRefreshing }: ActionBarProps) {
       setCountdown(5);
     }
   }, [countdown, onRefresh]);
+
+  const handleResetAll = async () => {
+    setIsResetting(true);
+    await resetAll();
+    setIsResetting(false);
+  };
 
   return (
     <div className="space-y-3">
@@ -76,28 +88,45 @@ export function ActionBar({ onRefresh, isRefreshing }: ActionBarProps) {
         </button>
       </div>
 
-      {/* Auto-refresh indicator */}
-      <div className="flex items-center justify-center gap-2 py-2">
-        <button
-          id="manual-refresh-btn"
-          onClick={onRefresh}
-          className={cn(
-            "flex items-center gap-1.5 text-[#475569] hover:text-[#94a3b8] transition-colors text-xs",
-            isRefreshing && "text-green-400"
-          )}
-          aria-label="Refresh OTPs now"
-        >
-          <RefreshCw
-            className={cn("w-3 h-3", isRefreshing && "animate-spin text-green-400")}
-          />
-        </button>
-        <p className="text-[#475569] text-xs">
-          Auto Refresh: Every{" "}
-          <span className="text-[#94a3b8] font-semibold">{countdown}s</span>
-          {isRefreshing && (
-            <span className="text-green-400 ml-1">• Refreshing...</span>
-          )}
-        </p>
+      {/* Bottom row: auto-refresh indicator + undone all */}
+      <div className="flex items-center justify-between py-1">
+        {/* Auto-refresh indicator */}
+        <div className="flex items-center gap-2">
+          <button
+            id="manual-refresh-btn"
+            onClick={onRefresh}
+            className={cn(
+              "flex items-center gap-1.5 text-[#475569] hover:text-[#94a3b8] transition-colors text-xs",
+              isRefreshing && "text-green-400"
+            )}
+            aria-label="Refresh OTPs now"
+          >
+            <RefreshCw
+              className={cn("w-3 h-3", isRefreshing && "animate-spin text-green-400")}
+            />
+          </button>
+          <p className="text-[#475569] text-xs">
+            Auto Refresh:{" "}
+            <span className="text-[#94a3b8] font-semibold">{countdown}s</span>
+            {isRefreshing && (
+              <span className="text-green-400 ml-1">• Refreshing...</span>
+            )}
+          </p>
+        </div>
+
+        {/* Undone All — only visible when at least one account is marked */}
+        {hasAnyAction && (
+          <button
+            id="undone-all-btn"
+            onClick={handleResetAll}
+            disabled={isResetting}
+            className="flex items-center gap-1.5 text-xs text-[#475569] hover:text-red-400 transition-colors duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Reset all accounts back to pending"
+          >
+            <RotateCcw className={cn("w-3 h-3", isResetting && "animate-spin")} />
+            {isResetting ? "Resetting..." : "Undone All"}
+          </button>
+        )}
       </div>
     </div>
   );
