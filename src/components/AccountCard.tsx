@@ -63,7 +63,19 @@ export function AccountCard({ account, action, otpCount }: AccountCardProps) {
   const ActionIcon = actionDisplay.icon;
 
   return (
-    <div className="rounded-2xl p-5 bg-[#111620] border border-[#1e2a3a] slide-in-left">
+    <div
+      onClick={handleCopyEmail}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && handleCopyEmail()}
+      title="Click anywhere to copy email"
+      className={cn(
+        "rounded-2xl p-5 bg-[#111620] border border-[#1e2a3a] slide-in-left",
+        "cursor-pointer select-none transition-all duration-200",
+        "hover:border-green-500/40 hover:bg-[#131a24] active:scale-[0.99]",
+        emailCopied && "border-green-500/60 bg-green-500/5"
+      )}
+    >
       <div className="flex items-start justify-between gap-3">
         {/* Avatar + Info */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -81,27 +93,21 @@ export function AccountCard({ account, action, otpCount }: AccountCardProps) {
           </div>
 
           <div className="flex-1 min-w-0">
-            {/* Email with copy */}
+            {/* Email with copy icon */}
             <div className="flex items-center gap-1.5">
               <span className="font-semibold text-white text-sm truncate">
                 {account.email}
               </span>
-              <button
-                id={`copy-email-${account.id}`}
-                onClick={handleCopyEmail}
-                className="flex-shrink-0 text-[#475569] hover:text-green-400 transition-colors"
-                aria-label="Copy email address"
-                title="Copy email"
-              >
+              <span className="flex-shrink-0 transition-colors">
                 {emailCopied ? (
                   <Check className="w-3.5 h-3.5 text-green-400" />
                 ) : (
-                  <Copy className="w-3.5 h-3.5" />
+                  <Copy className="w-3.5 h-3.5 text-[#475569]" />
                 )}
-              </button>
+              </span>
             </div>
 
-            {/* Status */}
+            {/* Status row */}
             <div className="flex items-center gap-1.5 mt-1">
               <div className={cn("w-1.5 h-1.5 rounded-full", status.dot)} />
               <span className={cn("text-xs font-medium", status.color)}>
@@ -111,6 +117,11 @@ export function AccountCard({ account, action, otpCount }: AccountCardProps) {
               <span className="text-[#475569] text-xs">
                 {otpCount} OTP{otpCount !== 1 ? "s" : ""} found
               </span>
+              {emailCopied && (
+                <span className="text-green-400 text-xs font-medium animate-pulse ml-1">
+                  ✓ Copied!
+                </span>
+              )}
             </div>
           </div>
         </div>
