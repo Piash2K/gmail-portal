@@ -35,7 +35,7 @@ export function ActionBar({ onRefresh, isRefreshing }: ActionBarProps) {
   useEffect(() => {
     if (countdown === 0) {
       onRefresh?.();
-      setCountdown(10);
+      setCountdown(5);
     }
   }, [countdown, onRefresh]);
 

@@ -195,10 +195,11 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
   },
 
   refreshOtps: async () => {
-    const { isRefreshing, fetchAccountsAndOtps } = get();
+    const { isRefreshing, accountsWithOTPs } = get();
     if (isRefreshing) return;
 
     set({ isRefreshing: true });
+
     if (DEMO_MODE) {
       await new Promise((r) => setTimeout(r, 400));
       const demoData = getDemoAccountsWithOTPs();
@@ -206,13 +207,42 @@ export const useAccountStore = create<AccountStore>((set, get) => ({
       return;
     }
 
+    // Silent refresh: never touch isLoading — skeleton must NOT appear.
+    // Only fetch fresh OTP data and patch it into the existing accounts list.
+    const token = typeof window !== "undefined" ? localStorage.getItem("gmail_portal_token") : null;
+    if (!token) {
+      set({ isRefreshing: false });
+      return;
+    }
+
     try {
+      // Trigger Gmail scan then fetch updated OTPs
       await otpsApi.refreshAll();
-      await fetchAccountsAndOtps();
+      const otpsData: any[] = await otpsApi.getAll();
+
+      // Patch OTPs into existing accountsWithOTPs without resetting anything else
+      const current = get().accountsWithOTPs;
+      const patched = current.map((item) => {
+        const accOtpsGroup = otpsData.find((g: any) => g.account?.id === item.account.id);
+        const rawOtps = accOtpsGroup?.otps || [];
+        const otps: OTPEntry[] = rawOtps.slice(0, 5).map((o: any) => ({
+          id: o.id,
+          sender: o.sender,
+          senderEmail: o.senderEmail,
+          otpCode: o.otpCode,
+          receivedAt: new Date(o.receivedAt),
+          isNew: o.isNew ?? (Date.now() - new Date(o.receivedAt).getTime()) / 60000 < 3,
+          subject: o.subject,
+          snippet: o.snippet,
+        }));
+        return { ...item, otps, lastFetched: new Date() };
+      });
+
+      set({ accountsWithOTPs: patched, lastRefresh: new Date() });
     } catch (err: any) {
-      console.error("Refresh OTPs failed:", err);
+      console.error("Silent OTP refresh failed:", err);
     } finally {
-      set({ isRefreshing: false, lastRefresh: new Date() });
+      set({ isRefreshing: false });
     }
   },
 

@@ -24,12 +24,15 @@ export function OTPCard({ otp, isHighlighted }: OTPCardProps) {
   return (
     <div
       className={cn(
-        "rounded-2xl p-5 border transition-all duration-300 cursor-pointer group fade-in",
-        isHighlighted
+        "rounded-2xl p-5 border transition-all duration-300 cursor-pointer group fade-in select-none",
+        copied
+          ? "bg-[#111e14] border-green-500/80 ring-1 ring-green-500/30"
+          : isHighlighted
           ? "bg-[#111e14] border-green-500/60 card-glow"
           : "bg-[#111620] border-[#1e2a3a] hover:border-[#2a3a50] hover:bg-[#141c28]"
       )}
       onClick={handleCopy}
+      title="Click anywhere to copy OTP"
     >
       <div className="flex items-start justify-between gap-3">
         {/* Left: Sender info */}

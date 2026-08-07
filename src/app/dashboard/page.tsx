@@ -254,10 +254,13 @@ function DashboardContent() {
                 <OTPSkeleton />
               ) : currentAccountData?.otps && currentAccountData.otps.length > 0 ? (
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
                     <h2 className="text-xs font-semibold text-[#475569] uppercase tracking-wider">
                       Latest 5 OTP Codes Found ({currentAccountData.otps.length})
                     </h2>
+                    {isRefreshing && (
+                      <RefreshCw className="w-3 h-3 text-green-400 animate-spin flex-shrink-0" />
+                    )}
                   </div>
                   {currentAccountData.otps.map((otp, idx) => (
                     <OTPCard
@@ -276,6 +279,12 @@ function DashboardContent() {
                   <p className="text-[#2a3a50] text-xs">
                     No OTP emails in the last 24 hours for this account
                   </p>
+                  {isRefreshing && (
+                    <div className="flex items-center gap-1.5 mt-3 text-[#475569] text-xs">
+                      <RefreshCw className="w-3 h-3 text-green-400 animate-spin" />
+                      <span>Checking for new OTPs...</span>
+                    </div>
+                  )}
                 </div>
               )}
 
