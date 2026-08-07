@@ -210,18 +210,11 @@ function DashboardContent() {
 
               {/* Current account card */}
               {currentAccountData && (
-                <>
-                  <AccountCard
-                    account={currentAccountData.account}
-                    action={currentWorkflowItem?.action ?? "pending"}
-                    otpCount={currentAccountData.otps.length}
-                  />
-
-                  {/* Note card for mobile / tablet screens */}
-                  <div className="xl:hidden">
-                    <AccountNoteCard account={currentAccountData.account} />
-                  </div>
-                </>
+                <AccountCard
+                  account={currentAccountData.account}
+                  action={currentWorkflowItem?.action ?? "pending"}
+                  otpCount={currentAccountData.otps.length}
+                />
               )}
 
               {/* Account navigation (inline for mobile feel) */}
@@ -285,6 +278,13 @@ function DashboardContent() {
                       <span>Checking for new OTPs...</span>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Note card for mobile / tablet screens — shown AFTER OTPs */}
+              {currentAccountData && (
+                <div className="xl:hidden">
+                  <AccountNoteCard account={currentAccountData.account} />
                 </div>
               )}
 
